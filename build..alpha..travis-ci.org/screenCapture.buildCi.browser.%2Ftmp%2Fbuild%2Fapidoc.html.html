@@ -1,0 +1,199 @@
+<html><head></head><body><div class="apidocDiv">
+<style>
+/*csslint
+*/
+.apidocDiv {
+    background: #fff;
+    font-family: Arial, Helvetica, sans-serif;
+}
+.apidocDiv a[href] {
+    color: #33f;
+    font-weight: bold;
+    text-decoration: none;
+}
+.apidocDiv a[href]:hover {
+    text-decoration: underline;
+}
+.apidocCodeCommentSpan {
+    background: #bbf;
+    color: #000;
+    display: block;
+}
+.apidocCodeKeywordSpan {
+    color: #d00;
+    font-weight: bold;
+}
+.apidocCodePre {
+    background: #eef;
+    border: 1px solid;
+    color: #777;
+    padding: 5px;
+    white-space: pre-wrap;
+}
+.apidocFooterDiv {
+    margin-top: 20px;
+    text-align: center;
+}
+.apidocModuleLi {
+    margin-top: 10px;
+}
+.apidocSectionDiv {
+    border-top: 1px solid;
+    margin-top: 20px;
+}
+.apidocSignatureSpan {
+    color: #777;
+    font-weight: bold;
+}
+</style>
+<h1>api documentation for
+    <a href="https://github.com/koalazak/i18n-express">i18n-express (v1.1.2)</a>
+</h1>
+<h4>A simple i18n middleware for Express.js.</h4>
+<div class="apidocSectionDiv"><a href="#apidoc.tableOfContents" id="apidoc.tableOfContents"><h1>table of contents</h1></a><ol>
+
+    <li class="apidocModuleLi"><a href="#apidoc.module.i18n-express">module i18n-express</a><ol>
+
+        <li>
+
+            <a class="apidocElementLiA" href="#apidoc.element.i18n-express.i18n-express">
+            function <span class="apidocSignatureSpan"></span>i18n-express
+            <span class="apidocSignatureSpan">(opts)</span>
+            </a>
+
+        </li>
+
+    </ol></li>
+
+</ol></div>
+
+<div class="apidocSectionDiv">
+<h1><a href="#apidoc.module.i18n-express" id="apidoc.module.i18n-express">module i18n-express</a></h1>
+
+
+    <h2>
+        <a href="#apidoc.element.i18n-express.i18n-express" id="apidoc.element.i18n-express.i18n-express">
+        function <span class="apidocSignatureSpan"></span>i18n-express
+        <span class="apidocSignatureSpan">(opts)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">i18n-express = function (opts) {
+  var i18nTranslations = [];
+  var translationsPath = opts.translationsPath || 'i18n';
+  var cookieLangName = opts.cookieLangName || 'ulang';
+  var browserEnable = opts.browserEnable !== false;
+  var defaultLang = opts.defaultLang || 'en';
+  var paramLangName = opts.paramLangName || 'clang';
+  var siteLangs = opts.siteLangs || ['en'];
+  var textsVarName = opts.textsVarName || 'texts';
+
+  if (siteLangs.constructor !== Array) {
+    throw new Error('siteLangs must be an Array with supported langs.');
+  }
+
+  var computedLang = '';
+
+  i18nTranslations = loadLangJSONFiles(translationsPath, defaultLang);
+
+  fs.watch(translationsPath, function (event, filename) {
+    if (filename) {
+      try {
+        i18nTranslations = loadLangJSONFiles(translationsPath, defaultLang);
+      } catch (ee) {
+        // Some editors first empty the file and then save the content. This generate a "Unexpected end of input" error
+      }
+    }
+  });
+
+  return function i18n (req, res, next) {
+    var alreadyTryCookie = false;
+    var alreadyBrowser = false;
+    // set textsVarName value for tests and variable recovery
+    req.app.locals.textsVarName = textsVarName;
+
+    while (1) {
+      if (cookieLangName &amp;&amp; alreadyTryCookie === false) {
+        var cLang = getLangFromCookie(req, cookieLangName);
+        if (cLang) {
+          computedLang = cLang;
+          break;
+        } else {
+          alreadyTryCookie = true;
+          continue;
+        }
+      } else if (browserEnable &amp;&amp; alreadyBrowser === false) {
+        var wLang = getLangFromHeaders(req);
+
+        if (wLang.length) {
+          computedLang = wLang[0];
+          break;
+        } else {
+          alreadyBrowser = true;
+          continue;
+        }
+      } else {
+        computedLang = defaultLang;
+      }
+      if (computedLang !== '') {
+        break;
+      }
+    }
+
+      // User is setting a lang via get param. Store and use it.
+    if (paramLangName in req.query) {
+      if (siteLangs.indexOf(req.query[paramLangName]) &gt; -1) {
+        if (cookieLangName &amp;&amp; req.session) {
+          req.session[cookieLangName] = req.query[paramLangName].toString();
+        }
+        computedLang = req.query[paramLangName].toString();
+      }
+    }
+
+    function setDefaulti18n () {
+      req.app.locals[textsVarName] = i18nTranslations[defaultLang];
+      req.app.locals.lang = defaultLang;
+    }
+
+    computedLang = computedLang.toLowerCase();
+
+    // setting translations to views
+
+    if (computedLang in i18nTranslations) {
+      req.app.locals[textsVarName] = i18nTranslations[computedLang];
+      req.app.locals.lang = computedLang;
+    } else {
+      if (computedLang.indexOf('-') &gt; -1) {
+          // try extract "en" from "en-US"
+        var soloLang = computedLang.split('-')[0];
+        if (soloLang in i18nTranslations) {
+          req.app.locals[textsVarName] = i18nTranslations[soloLang];
+          req.app.locals.lang = soloLang;
+        } else {
+          setDefaulti18n();
+        }
+      } else {
+        setDefaulti18n();
+      }
+    }
+
+    // req.i18n_all_texts=i18nTranslations;
+    req.i18n_texts = req.app.locals[textsVarName];
+    req.i18n_lang = req.app.locals.lang;
+
+    next();
+  };
+}</pre></li>
+    <li>example usage<pre class="apidocCodePre">n/a</pre></li>
+    </ul>
+
+
+</div>
+
+<div class="apidocFooterDiv">
+    [ this document was created with
+    <a href="https://github.com/kaizhu256/node-utility2" target="_blank">utility2</a>
+    ]
+</div>
+</div>
+</body></html>
